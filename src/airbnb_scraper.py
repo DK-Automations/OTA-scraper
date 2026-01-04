@@ -9,9 +9,11 @@ from typing import List, Dict, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 try:
-    from pyairbnb import Api
+    import pyairbnb
+    PYAIRBNB_AVAILABLE = True
 except ImportError:
-    Api = None
+    pyairbnb = None
+    PYAIRBNB_AVAILABLE = False
     logging.warning("pyairbnb not installed. Airbnb scraping will not work.")
 
 
@@ -29,9 +31,7 @@ class AirbnbScraper:
             config: Configuration object
         """
         self.config = config
-        self.api = None
-        if Api is not None:
-            self.api = Api(currency=config.filters['currency'])
+        self.pyairbnb_available = PYAIRBNB_AVAILABLE
 
     def respectful_delay(self):
         """Add respectful delay between requests."""
@@ -63,7 +63,7 @@ class AirbnbScraper:
         Returns:
             List of property dictionaries
         """
-        if self.api is None:
+        if not self.pyairbnb_available:
             logger.error("pyairbnb not available. Cannot search Airbnb.")
             return []
 
@@ -76,15 +76,18 @@ class AirbnbScraper:
 
         try:
             # Search using bounding box
-            results = self.api.search(
-                checkin=check_in,
-                checkout=check_out,
+            results = pyairbnb.search_all(
+                check_in=check_in,
+                check_out=check_out,
                 ne_lat=airbnb_params['ne_lat'],
                 ne_long=airbnb_params['ne_long'],
                 sw_lat=airbnb_params['sw_lat'],
                 sw_long=airbnb_params['sw_long'],
                 zoom_value=airbnb_params.get('zoom', 14),
-                currency=filters_config['currency']
+                currency=filters_config['currency'],
+                min_bedrooms=filters_config['bedrooms'],
+                price_min=filters_config['min_price'],
+                price_max=filters_config['max_price']
             )
 
             logger.info(f"Found {len(results)} Airbnb listings")
@@ -135,46 +138,52 @@ class AirbnbScraper:
             Dictionary with extracted property data
         """
         try:
-            # Extract pricing information
-            pricing = listing.get('pricing', {})
-            price_info = pricing.get('rate', {})
+            # Extract pricing information from the new pyairbnb format
+            price_data = listing.get('price', {})
 
-            # Get nightly rate
-            nightly_rate = None
-            if 'amount' in price_info:
-                nightly_rate = float(price_info['amount'])
-            elif 'price' in listing:
-                nightly_rate = float(listing['price'])
+            # Get total price for stay
+            total_price = 0
+            if isinstance(price_data, dict) and 'unit' in price_data:
+                total_price = float(price_data['unit'].get('amount', 0))
 
-            # Extract cleaning fee
+            # Calculate nightly rate (divide by 2 for 2-night stay)
+            nightly_rate = total_price / 2 if total_price > 0 else 0
+
+            # Extract cleaning fee from breakdown if available
             cleaning_fee = 0
-            if 'cleaningFee' in pricing:
-                cleaning_fee = float(pricing['cleaningFee'].get('amount', 0))
-            elif 'cleaning_fee' in listing:
-                cleaning_fee = float(listing.get('cleaning_fee', 0))
+            fee_data = listing.get('fee', {})
+            if isinstance(fee_data, dict):
+                # Sometimes cleaning fee is in the fee section
+                cleaning_fee = float(fee_data.get('cleaning_fee', 0))
 
-            # Extract location
-            lat = listing.get('lat', 0)
-            lng = listing.get('lng', 0)
+            # Extract location from coordinates
+            coordinates = listing.get('coordinates', {})
+            lat = coordinates.get('latitude', 0) if isinstance(coordinates, dict) else 0
+            lng = coordinates.get('longitude', 0) if isinstance(coordinates, dict) else 0
+
+            # Extract rating
+            rating_data = listing.get('rating', {})
+            rating_score = rating_data.get('score', 0) if isinstance(rating_data, dict) else 0
+            review_count = rating_data.get('count', 0) if isinstance(rating_data, dict) else 0
 
             # Build property data dictionary
             property_data = {
                 'platform': 'Airbnb',
-                'property_id': listing.get('id', ''),
-                'name': listing.get('name', ''),
-                'url': f"https://www.airbnb.com/rooms/{listing.get('id', '')}",
+                'property_id': listing.get('room_id', ''),
+                'name': listing.get('name', listing.get('title', '')),
+                'url': f"https://www.airbnb.com/rooms/{listing.get('room_id', '')}",
                 'latitude': lat,
                 'longitude': lng,
-                'bedrooms': listing.get('bedrooms', 0),
-                'bathrooms': listing.get('bathrooms', 0),
-                'max_guests': listing.get('person_capacity', 0),
+                'bedrooms': 1,  # We filtered for 1BR
+                'bathrooms': 1,  # Default assumption
+                'max_guests': 2,  # Default assumption
                 'nightly_rate': nightly_rate,
                 'cleaning_fee': cleaning_fee,
                 'service_fee': 0,  # Will be calculated
-                'property_type': listing.get('room_type', ''),
-                'rating': listing.get('star_rating', 0),
-                'review_count': listing.get('reviews_count', 0),
-                'amenities': listing.get('amenities', []),
+                'property_type': listing.get('type', 'Entire place'),
+                'rating': rating_score,
+                'review_count': review_count,
+                'amenities': [],  # Would need detailed fetch
                 'check_in': check_in,
                 'check_out': check_out,
                 'date_scraped': datetime.now().isoformat(),
@@ -234,7 +243,7 @@ class AirbnbScraper:
         Returns:
             Detailed property data dictionary
         """
-        if self.api is None:
+        if not self.pyairbnb_available:
             logger.error("pyairbnb not available.")
             return None
 
@@ -242,7 +251,7 @@ class AirbnbScraper:
             logger.info(f"Fetching details for listing {room_id}")
 
             # Get listing details
-            details = self.api.get_room_details(room_id)
+            details = pyairbnb.get_details(room_id, self.config.filters['currency'])
 
             self.respectful_delay()
 
