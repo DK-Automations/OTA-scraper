@@ -2,9 +2,10 @@ name: Tests
 
 on:
   push:
-    branches: [ main, master, 'claude/*' ]
+    branches: [ main, master, 'claude/*', 'feature/*' ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   test:
