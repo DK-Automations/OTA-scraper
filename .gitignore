@@ -43,6 +43,7 @@ data/processed/*.csv
 data/archive/*
 output/*.csv
 output/*.json
+output/*.html
 
 # OS
 .DS_Store

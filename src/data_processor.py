@@ -454,3 +454,51 @@ class DataProcessor:
         logger.info("Data processing and export complete!")
 
         return summary
+
+    def create_location_maps(
+        self,
+        properties: List[Dict],
+        date_str: str = None
+    ) -> Dict[str, str]:
+        """
+        Create location maps for the scraped properties.
+
+        Args:
+            properties: List of property dictionaries with coordinates
+            date_str: Date string for filenames
+
+        Returns:
+            Dictionary with paths to created map files
+        """
+        try:
+            from location_plotter import LocationPlotter
+        except ImportError:
+            logger.warning("LocationPlotter not available - skipping map generation")
+            return {}
+
+        if date_str is None:
+            date_str = datetime.now().strftime(self.config.output_settings['date_format'])
+
+        plotter = LocationPlotter(self.config)
+        plotting_settings = self.config.plotting_settings
+        created_maps = {}
+
+        # Create interactive map
+        if plotting_settings.get('create_interactive_map', True):
+            map_path = plotter.create_interactive_map(
+                properties=properties,
+                show_radius=plotting_settings.get('show_search_radius', True),
+                radius_km=self.config.search_params.get('max_distance_km', 2.0)
+            )
+            if map_path:
+                created_maps['interactive_map'] = map_path
+                logger.info(f"Interactive map created: {map_path}")
+
+        # Create heatmap
+        if plotting_settings.get('create_heatmap', False):
+            heatmap_path = plotter.create_price_heatmap(properties=properties)
+            if heatmap_path:
+                created_maps['price_heatmap'] = heatmap_path
+                logger.info(f"Price heatmap created: {heatmap_path}")
+
+        return created_maps

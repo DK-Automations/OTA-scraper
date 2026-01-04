@@ -62,6 +62,21 @@ class Config:
         """Get output settings."""
         return self._config['output']
 
+    @property
+    def plotting_settings(self):
+        """Get map/plotting settings."""
+        return self._config.get('plotting', {
+            'enabled': True,
+            'create_interactive_map': True,
+            'create_heatmap': False,
+            'show_search_radius': True,
+            'price_thresholds': {
+                'budget': 120,
+                'moderate': 180,
+                'premium': 250
+            }
+        })
+
     def get(self, key, default=None):
         """Get configuration value by key."""
         return self._config.get(key, default)
