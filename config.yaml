@@ -1,0 +1,57 @@
+# Property location
+our_location:
+  latitude: -37.8283
+  longitude: 144.9550
+  name: "Darling Street Residence"
+  current_rates:
+    weekday_rate: 145
+    weekend_rate: 145
+    cleaning_fee: 90
+    actual_cleaning_cost: 125
+
+# Search parameters
+search:
+  max_distance_km: 2.0
+  max_properties: 15
+
+  airbnb:
+    ne_lat: -37.820
+    ne_long: 144.965
+    sw_lat: -37.835
+    sw_long: 144.950
+    zoom: 14
+
+  booking:
+    city: "South Melbourne"
+    country: "Australia"
+
+# Date ranges
+dates:
+  weekday_checkin: "2026-02-15"
+  weekday_checkout: "2026-02-17"
+  weekend_checkin: "2026-02-21"
+  weekend_checkout: "2026-02-23"
+
+# Filters
+filters:
+  property_type: "Entire place"
+  bedrooms: 1
+  min_price: 80
+  max_price: 300
+  currency: "AUD"
+  min_rating: 7.0
+
+# Rate limiting
+rate_limit:
+  requests_per_minute: 10
+  delay_between_requests: 3  # seconds
+  min_delay: 2
+  max_delay: 5
+
+# Output settings
+output:
+  save_raw_json: true
+  save_processed_csv: true
+  save_summary: true
+  archive_old_data: true
+  date_format: "%Y%m%d"
